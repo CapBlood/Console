@@ -1,6 +1,6 @@
 CC = @gcc-8
-CFLAGS = -w -c
-LFLAGS = -lcurses
+CFLAGS = -w -c -g
+LFLAGS = -lcurses -g
 NAME = console
 INS_DIR = /Users/donsangre/Documents/Scripts
 
