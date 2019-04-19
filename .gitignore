@@ -1,3 +1,6 @@
 *.o
 *.txt
 *.tar
+*.out
+a
+console
