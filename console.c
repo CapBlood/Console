@@ -1,19 +1,24 @@
 #include "console.h"
 
-char *functions[] = {
-  "exit",
-  "cd"
+char *keys[] = {
+	"\027\094\091\065" // UpArrow
 };
-int (*built_in[]) (const char **)  = {
-  &exit_term,
-  &_cd
+char *functions[] = {
+	"exit",
+	"cd"
+};
+int (*built_in[]) (const char **) = {
+	&exit_term,
+	&_cd
 };
 size_t size = MAX_COMMANDS + 2;
+size_t size_keys = sizeof keys;
 size_t func = sizeof functions;
 char **commands;
 size_t curr_command;
 size_t top;
 size_t bottom;
+static int pos_buf;
 
 int init_buffer()
 {
@@ -72,15 +77,50 @@ int _cd(const char **argv)
 	return 1;
 }
 
+int recognize_key(char *line, size_t pos) {
+	line[pos + 1] = '\0';
+
+	return strcmp(line, keys[0]);
+}
+
 char *read_string(void)
 {
-	char *str = NULL;
-	ssize_t buf = 0;
+	int buf_size = BUF_SIZE;
+	char *buf = malloc(buf_size);
+	if (buf == NULL)
+		goto error;
 
-	if (getline(&str, &buf, stdin) == -1)
-		perror("SuperTerm");
+	char c;
+	int pos = 0;
+	pos_buf = 0;
+	while ((c = getchar()) != '\n' && c != EOF) {
+		// if (c == '\033') {
+		// 	fflush(stdin);
+		// 	fflush(stdout);
+		// 	lseek(STDIN_FILENO, 0, SEEK_END);
+		// 	char *com = get_command();
+		// 	fprintf(stdin, "%s", com);
+		// 	fprintf(stdout, "%s", com);
+		// 	continue;
+		// }
+		// printf("%c\n", c);
+		buf[pos] = c;
+		pos++;
 
-	return str;
+		if (buf_size <= pos) {
+			buf_size += BUF_SIZE;
+			buf = realloc(buf, buf_size);
+			if (buf == NULL)
+				goto error;
+		}
+	}
+	buf[pos] = '\0';
+
+	return buf;
+
+error:
+	perror("SuperTerm");
+	return NULL;
 }
 
 int start(char **argv)
@@ -119,7 +159,26 @@ int execute(char **argv)
 	return start(argv);
 }
 
-int split(char *str, char **tokens)
+char *split(char *str)
 {
+	int i, spaces = 0;
+ 	for (i = 0; i < strlen(str); i++)
+ 		if(str[i] == ' ')
+ 			spaces++;
 
+ 	printf("%d", spaces);
+ 	char *words[spaces + 2];
+ 	char *p = strtok(str, " ");
+ 	i = 0;
+
+ 	while (p != NULL) {
+  		words[i++] = p;
+  		p = strtok(NULL, " ");
+	}
+
+	printf("%s\n", words[0]);
+	printf("%s\n", words[1]);
+
+ 	words[spaces + 1] = "\0";
+ 	return words;
 }

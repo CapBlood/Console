@@ -8,6 +8,7 @@
 #include <signal.h>
 
 #define MAX_COMMANDS 10
+#define BUF_SIZE 100
 
 // Built-in functions
 int exit_term(const char **argv); // Exit from terminal
@@ -17,7 +18,7 @@ int _cd(const char **argv); // Change dir to certain path
 char *read_string(void); // Read a string
 char *get_command(void); // Get a command from buffer
 void put_command(char *line); // Put a command to buffer
-int split(char *str, char **tokens); // Split a string by spaces
+char *split(char *str); // Split a string by spaces
 int start(char **argv); // Starting a proccess
 int execute(char **argv); // Parse a command(built-in or from environment)
 int init_buffer(void); // Init a buffer for commands
@@ -29,5 +30,7 @@ extern size_t func;
 extern char **commands;
 extern size_t curr_command;
 extern size_t top;
+// extern int stream_out;
+// extern int stream_in;
 
 #endif
