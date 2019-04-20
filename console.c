@@ -1,8 +1,5 @@
 #include "console.h"
 
-char *keys[] = {
-	"\027\094\091\065" // UpArrow
-};
 char *functions[] = {
 	"exit",
 	"cd"
@@ -12,8 +9,7 @@ int (*built_in[]) (const char **) = {
 	&_cd
 };
 size_t size = MAX_COMMANDS + 2;
-size_t size_keys = sizeof keys;
-size_t func = sizeof functions;
+size_t func = sizeof functions / sizeof(char *);
 char **commands;
 size_t curr_command;
 size_t top;
@@ -57,9 +53,9 @@ void del_buffer(void) {
 	free(commands);
 }
 
-int exit_term(const char **argv)
+void exit_term(const char **argv)
 {
-	return 0;
+	exit(EXIT_SUCCESS);
 }
 
 int _cd(const char **argv)
@@ -77,10 +73,35 @@ int _cd(const char **argv)
 	return 1;
 }
 
-int recognize_key(char *line, size_t pos) {
-	line[pos + 1] = '\0';
+int read_key(void)
+{
+	char buf[4];
+	struct termios term_saved;
+	if (tcgetattr(STDIN_FILENO, &term_saved) == -1) {
+		perror("SuperTerm");
+		return -1;
+	}
 
-	return strcmp(line, keys[0]);
+	struct termios curr_term = term_saved;
+	curr_term.c_lflag &= ~ICANON;
+	curr_term.c_lflag |= ECHO;
+
+	tcsetattr(STDIN_FILENO, TCSANOW, &curr_term);
+
+	int pos = 0;
+	char ch;
+	while ((ch = getchar()) != EOF && pos != 4) {
+		buf[pos] = ch;
+		pos++;
+	}
+
+	if (strcmp(buf, UP_ARROW) == 0) {
+		printf("\r");
+		printf("%s", get_command());
+	}
+
+	tcsetattr(STDIN_FILENO, TCSANOW, &term_saved);
+	return 0;
 }
 
 char *read_string(void)
@@ -94,24 +115,19 @@ char *read_string(void)
 	int pos = 0;
 	pos_buf = 0;
 	while ((c = getchar()) != '\n' && c != EOF) {
-		// if (c == '\033') {
-		// 	fflush(stdin);
-		// 	fflush(stdout);
-		// 	lseek(STDIN_FILENO, 0, SEEK_END);
-		// 	char *com = get_command();
-		// 	fprintf(stdin, "%s", com);
-		// 	fprintf(stdout, "%s", com);
-		// 	continue;
-		// }
-		// printf("%c\n", c);
 		buf[pos] = c;
 		pos++;
 
 		if (buf_size <= pos) {
+			char *tmp;
 			buf_size += BUF_SIZE;
-			buf = realloc(buf, buf_size);
-			if (buf == NULL)
+			tmp = realloc(buf, buf_size);
+			if (tmp != NULL)
+				buf = tmp;
+			else {
+				free(buf);
 				goto error;
+			}
 		}
 	}
 	buf[pos] = '\0';
@@ -159,26 +175,38 @@ int execute(char **argv)
 	return start(argv);
 }
 
-char *split(char *str)
+char **split(char *str)
 {
-	int i, spaces = 0;
- 	for (i = 0; i < strlen(str); i++)
- 		if(str[i] == ' ')
- 			spaces++;
+	int bufsize = TOK_BUFSIZE, position = 0;
+	char **tokens = malloc(bufsize * sizeof(char*));
+	char *token;
 
- 	printf("%d", spaces);
- 	char *words[spaces + 2];
- 	char *p = strtok(str, " ");
- 	i = 0;
+	if (!tokens)
+		goto error;
 
- 	while (p != NULL) {
-  		words[i++] = p;
-  		p = strtok(NULL, " ");
+	token = strtok(str, TOK_DELIM);
+	while (token != NULL) {
+		tokens[position] = token;
+		position++;
+
+		if (position >= bufsize) {
+			char *tmp;
+			bufsize += TOK_BUFSIZE;
+			tmp = realloc(tokens, bufsize * sizeof(char*));
+			if (tmp != NULL)
+				tokens = tmp;
+			else {
+				free(tokens);
+				goto error;
+			}
+		}
+
+		token = strtok(NULL, TOK_DELIM);
 	}
+	tokens[position] = NULL;
+	return tokens;
 
-	printf("%s\n", words[0]);
-	printf("%s\n", words[1]);
-
- 	words[spaces + 1] = "\0";
- 	return words;
+error:
+	perror("SuperTerm");
+	return NULL;
 }
