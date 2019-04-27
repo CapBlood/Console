@@ -12,6 +12,7 @@
 
 int main(void)
 {
+	char *login;
 	char **args;
 	char *buf;
 
@@ -19,8 +20,9 @@ int main(void)
 		goto error;
 
 
+	login = getlogin();
 	while (1) {
-		printf("%s$ -> ", getlogin());
+		printf("%s$ -> ", login);
 		// read_key();
 		buf = read_string();
 		put_command(buf);

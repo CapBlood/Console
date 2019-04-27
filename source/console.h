@@ -27,6 +27,7 @@ int start(char **argv); // Starting a proccess
 int execute(char **argv); // Parse a command(built-in or from environment)
 int init_buffer(void); // Init a buffer for commands
 int read_key(void);
+void kill_child(int type); // Kill a last child proccess
 
 // Info for terminal
 extern int (*built_in[]) (const char **);
@@ -35,7 +36,5 @@ extern size_t func;
 extern char **commands;
 extern size_t curr_command;
 extern size_t top;
-// extern int stream_out;
-// extern int stream_in;
 
 #endif

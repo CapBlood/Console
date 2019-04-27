@@ -15,6 +15,7 @@ size_t curr_command;
 size_t top;
 size_t bottom;
 static int pos_buf;
+static pid_t last_id;
 
 int init_buffer()
 {
@@ -71,6 +72,13 @@ int _cd(const char **argv)
 	}
 
 	return 1;
+}
+
+void kill_child(int type)
+{
+	if (kill(last_id, type) == -1)
+		perror("SuperTerm");
+	printf("\n");
 }
 
 int read_key(void)
@@ -150,6 +158,15 @@ int start(char **argv)
 	} else if (id < 0) {
 		goto error;
 	} else {
+		struct sigaction act;
+		act.sa_handler = kill_child;
+		sigemptyset(&act.sa_flags);
+		// act.sa_flags |= SA_RESTART;
+		act.sa_flags = 0;
+		act.sa_flags |= SA_RESTART;
+		act.sa_flags |= SA_RESETHAND;
+		last_id = id;
+		sigaction(SIGINT, &act, 0);
 		do {
 			waitpid(id, &state, WUNTRACED);
 		} while (!WIFEXITED(state) && !WIFSIGNALED(state));
