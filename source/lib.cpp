@@ -44,6 +44,7 @@ Console::~Console()
 
 void Console::insertPrompt(bool insertNewBlock)
 {
+	*stream << QString("asdsad");
 	QTextCharFormat format;
     	format.setForeground(Qt::green);
     	textCursor().setBlockCharFormat(format);

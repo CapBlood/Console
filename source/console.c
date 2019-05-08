@@ -8,82 +8,8 @@ int (*built_in[]) (char **) = {
 	&exit_term,
 	&_cd
 };
-struct termios term_saved;
-size_t size = MAX_COMMANDS + 2;
 size_t func = sizeof functions / sizeof(char *);
-char **commands;
-size_t curr_command;
-size_t top;
-size_t bottom;
-static int pos_buf;
 static pid_t last_id;
-
-int init_buffer()
-{
-	commands = (char **) calloc(size - 1, sizeof(char *));
-	if (commands == NULL) {
-		perror("SuperTerm");
-		return -1;
-	}
-	curr_command = 1;
-	top = 1;
-	bottom = 0;
-
-	return 0;
-}
-
-int init_raw(void)
-{
-	struct termios term;
-
-	if (tcgetattr(STDIN_FILENO, &term_saved) == 1)
-		goto error;
-
-	term = term_saved;
-	term.c_lflag &= ~ICANON;
-
-	if (tcsetattr(STDIN_FILENO, TCSANOW, &term) == -1)
-		goto error;
-
-	return 0;
-error:
-	perror("SuperTerm");
-	return -1;
-}
-
-int reset_raw(void)
-{
-	if (tcsetattr(STDIN_FILENO, TCSANOW, &term_saved) == -1) {
-		perror("SuperTerm");
-		return -1;
-	}
-
-	return 0;
-}
-
-void put_command(char *line)
-{
-	commands[top] = (char *) malloc(strlen(line) + 1);
-	strcpy(commands[top], line);
-	curr_command = top;
-	top = (top + size + 1) % size;
-	if (top == bottom)
-		bottom = (bottom + size + 1) % size;
-}
-
-char *get_command(void)
-{
-	int curr = curr_command;
-	curr_command = (curr_command + size - 1) % size;
-	return (curr != bottom) ? commands[curr] : NULL;
-}
-
-void del_buffer(void)
-{
-	for (int i = top; i != bottom; i = (i + size - 1) % size)
-		free(commands[i]);
-	free(commands);
-}
 
 int exit_term(char **argv)
 {
@@ -122,7 +48,6 @@ char *read_string(void)
 	if (buf == NULL)
 		goto error;
 
-	pos_buf = 0;
 	while ((c = getchar()) != '\n' && c != EOF) {
 		buf[pos] = c;
 		pos++;
