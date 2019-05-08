@@ -10,7 +10,10 @@
 #include <QScrollBar>
 #include <QPalette>
 #include <QTextBlock>
+#include <QTextStream>
+
 #include <stdio.h>
+#include "console.h"
 
 class MainWindow : public QMainWindow
 {
@@ -28,12 +31,15 @@ class Console : public QPlainTextEdit
 
 public:
 	Console(QWidget *parent = nullptr);
+	~Console();
 
 public slots:
 	void keyPressEvent(QKeyEvent *);
 	void mousePressEvent(QMouseEvent *);
 	void mouseDoubleClickEvent(QMouseEvent *);
 	void contextMenuEvent(QContextMenuEvent *);
+	void commandProccess(QString);
+	void readOut();
 
 signals:
 	void onCommand(QString);
@@ -44,6 +50,7 @@ private:
 	void output(QString s);
 	void scrollDown();
 
+	QTextStream *stream;
 	QString prompt;
 	bool isLocked;
 };

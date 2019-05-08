@@ -1,4 +1,4 @@
-#include "lib.moc"
+#include "lib.h"
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -13,15 +13,19 @@ MainWindow::MainWindow(QWidget *parent)
 	layout->addWidget(console);
 	window->setLayout(layout);
 	setCentralWidget(window);
+
+
+	init_buffer();
 }
 
 MainWindow::~MainWindow()
 {
-
+	del_buffer();
 }
 
 Console::Console(QWidget *parent) : QPlainTextEdit(parent)
 {
+	stream = new QTextStream(stdout);
 	prompt = "->";
 	QPalette p = palette();
 	p.setColor(QPalette::Base, Qt::black);
@@ -29,7 +33,13 @@ Console::Console(QWidget *parent) : QPlainTextEdit(parent)
 	setPalette(p);
 	insertPrompt(false);
 
-	connect(this, &Console::onCommand, [] () {printf("sfgfdgdfg\n");});
+	connect(this, SIGNAL(onCommand(QString)), SLOT(commandProccess(QString)));
+	connect(stream->device(), SIGNAL(readyRead()), this, SLOT(readOut()));
+}
+
+Console::~Console()
+{
+	delete stream;
 }
 
 void Console::insertPrompt(bool insertNewBlock)
@@ -95,6 +105,21 @@ void Console::scrollDown()
 void Console::mousePressEvent(QMouseEvent *)
 {
 	setFocus();
+}
+
+void Console::readOut()
+{
+	appendPlainText(QString(stream->readAll()));
+}
+
+void Console::commandProccess(QString cmd)
+{
+	char **args;
+	char *str = cmd.toLocal8Bit().data();
+	put_command(str);
+	args = split(str);
+	execute(args);
+	free(args);
 }
 
 void Console::mouseDoubleClickEvent(QMouseEvent *){}

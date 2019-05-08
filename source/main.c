@@ -19,11 +19,9 @@ int main(void)
 	if (init_buffer() == -1)
 		goto error;
 
-
 	login = getlogin();
 	while (1) {
 		printf("%s$ -> ", login);
-		// read_key();
 		buf = read_string();
 		put_command(buf);
 		args = split(buf);
@@ -31,12 +29,6 @@ int main(void)
 		free(buf);
 		free(args);
 	}
-
-	// while ((str = get_command()) != NULL) {
-	// 	printf("%s\n", str);
-	// }
-
-
 
 	del_buffer();
 	return 0;

@@ -4,10 +4,11 @@ char *functions[] = {
 	"exit",
 	"cd"
 };
-int (*built_in[]) (const char **) = {
+int (*built_in[]) (char **) = {
 	&exit_term,
 	&_cd
 };
+struct termios term_saved;
 size_t size = MAX_COMMANDS + 2;
 size_t func = sizeof functions / sizeof(char *);
 char **commands;
@@ -19,7 +20,7 @@ static pid_t last_id;
 
 int init_buffer()
 {
-	commands = calloc(size - 1, sizeof(char *));
+	commands = (char **) calloc(size - 1, sizeof(char *));
 	if (commands == NULL) {
 		perror("SuperTerm");
 		return -1;
@@ -31,9 +32,38 @@ int init_buffer()
 	return 0;
 }
 
+int init_raw(void)
+{
+	struct termios term;
+
+	if (tcgetattr(STDIN_FILENO, &term_saved) == 1)
+		goto error;
+
+	term = term_saved;
+	term.c_lflag &= ~ICANON;
+
+	if (tcsetattr(STDIN_FILENO, TCSANOW, &term) == -1)
+		goto error;
+
+	return 0;
+error:
+	perror("SuperTerm");
+	return -1;
+}
+
+int reset_raw(void)
+{
+	if (tcsetattr(STDIN_FILENO, TCSANOW, &term_saved) == -1) {
+		perror("SuperTerm");
+		return -1;
+	}
+
+	return 0;
+}
+
 void put_command(char *line)
 {
-	commands[top] = malloc(strlen(line) + 1);
+	commands[top] = (char *) malloc(strlen(line) + 1);
 	strcpy(commands[top], line);
 	curr_command = top;
 	top = (top + size + 1) % size;
@@ -48,18 +78,19 @@ char *get_command(void)
 	return (curr != bottom) ? commands[curr] : NULL;
 }
 
-void del_buffer(void) {
+void del_buffer(void)
+{
 	for (int i = top; i != bottom; i = (i + size - 1) % size)
 		free(commands[i]);
 	free(commands);
 }
 
-void exit_term(const char **argv)
+int exit_term(char **argv)
 {
 	exit(EXIT_SUCCESS);
 }
 
-int _cd(const char **argv)
+int _cd(char **argv)
 {
 	if (argv[1] == NULL) {
 		fprintf(stderr, "Enter the path\n");
@@ -78,58 +109,27 @@ void kill_child(int type)
 {
 	if (kill(last_id, type) == -1)
 		perror("SuperTerm");
-	printf("\n");
-}
-
-int read_key(void)
-{
-	char buf[4];
-	struct termios term_saved;
-	if (tcgetattr(STDIN_FILENO, &term_saved) == -1) {
-		perror("SuperTerm");
-		return -1;
-	}
-
-	struct termios curr_term = term_saved;
-	curr_term.c_lflag &= ~ICANON;
-	curr_term.c_lflag |= ECHO;
-
-	tcsetattr(STDIN_FILENO, TCSANOW, &curr_term);
-
-	int pos = 0;
-	char ch;
-	while ((ch = getchar()) != EOF && pos != 4) {
-		buf[pos] = ch;
-		pos++;
-	}
-
-	if (strcmp(buf, UP_ARROW) == 0) {
-		printf("\r");
-		printf("%s", get_command());
-	}
-
-	tcsetattr(STDIN_FILENO, TCSANOW, &term_saved);
-	return 0;
 }
 
 char *read_string(void)
 {
 	int buf_size = BUF_SIZE;
-	char *buf = malloc(buf_size);
+	char *buf = (char *) malloc(buf_size);
+	char c;
+	int pos = 0;
+	char *tmp;
+
 	if (buf == NULL)
 		goto error;
 
-	char c;
-	int pos = 0;
 	pos_buf = 0;
 	while ((c = getchar()) != '\n' && c != EOF) {
 		buf[pos] = c;
 		pos++;
 
 		if (buf_size <= pos) {
-			char *tmp;
 			buf_size += BUF_SIZE;
-			tmp = realloc(buf, buf_size);
+			tmp = (char *) realloc(buf, buf_size);
 			if (tmp != NULL)
 				buf = tmp;
 			else {
@@ -149,8 +149,16 @@ error:
 
 int start(char **argv)
 {
+	int back_mode = 0;
 	int state;
 	pid_t id = fork();
+
+	char **ptr = argv;
+	for (; *(ptr + 1) != NULL; ptr++);
+	if (strcmp(*ptr, "&") == 0) {
+		*ptr = 0;
+		back_mode = 1;
+	}
 
 	if (id == 0) {
 		if (execvp(argv[0], argv) == -1)
@@ -159,17 +167,24 @@ int start(char **argv)
 		goto error;
 	} else {
 		struct sigaction act;
+		struct sigaction prev;
 		act.sa_handler = kill_child;
 		sigemptyset(&act.sa_flags);
-		// act.sa_flags |= SA_RESTART;
 		act.sa_flags = 0;
 		act.sa_flags |= SA_RESTART;
 		act.sa_flags |= SA_RESETHAND;
 		last_id = id;
-		sigaction(SIGINT, &act, 0);
+		sigaction(SIGINT, &act, &prev);
+
+		if (back_mode == 1)
+			return 1;
+
 		do {
 			waitpid(id, &state, WUNTRACED);
 		} while (!WIFEXITED(state) && !WIFSIGNALED(state));
+
+		prev.sa_handler = SIG_DFL;
+		sigaction(SIGINT, &prev, 0);
 	}
 
 	return 1;
@@ -195,7 +210,7 @@ int execute(char **argv)
 char **split(char *str)
 {
 	int bufsize = TOK_BUFSIZE, position = 0;
-	char **tokens = malloc(bufsize * sizeof(char*));
+	char **tokens = (char **) malloc(bufsize * sizeof(char*));
 	char *token;
 
 	if (!tokens)
@@ -207,9 +222,9 @@ char **split(char *str)
 		position++;
 
 		if (position >= bufsize) {
-			char *tmp;
+			char **tmp;
 			bufsize += TOK_BUFSIZE;
-			tmp = realloc(tokens, bufsize * sizeof(char*));
+			tmp = (char **) realloc(tokens, bufsize * sizeof(char*));
 			if (tmp != NULL)
 				tokens = tmp;
 			else {
